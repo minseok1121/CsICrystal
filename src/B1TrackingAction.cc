@@ -39,6 +39,10 @@
 #include "G4LogicalVolume.hh"
 #include "G4SystemOfUnits.hh"
 #include "G4INCLGlobals.hh"
+
+#include "B1MyTrackInformation.hh"
+#include "G4Track.hh"
+#include "B1SteppingAction.hh"
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 B1TrackingAction::B1TrackingAction(B1EventAction* eventAction)
@@ -60,7 +64,20 @@ B1TrackingAction::~B1TrackingAction()
 
 void B1TrackingAction::PreUserTrackingAction(const G4Track* tr)
 {
- 
+  auto* info = new B1MyTrackInformation();
+
+  // trackID 자체로부터 tag 가져오기
+  if (gTrackIDtoTag.count(tr->GetParentID()) > 0){
+    if(gTrackIDtoTag[tr->GetParentID()] == 4){
+      if(tr->GetDefinition()->GetParticleName() == "e-")  info->SetTag(5);
+      else if(tr->GetDefinition()->GetParticleName() == "gamma")  info->SetTag(6);
+      else info->SetTag(0);
+    }
+    else info->SetTag(gTrackIDtoTag[tr->GetParentID()]);
+  }
+
+  const_cast<G4Track*>(tr)->SetUserInformation(info);
+
  /*
   if (!fScoringVolume1) {
     const B1DetectorConstruction* detectorConstruction

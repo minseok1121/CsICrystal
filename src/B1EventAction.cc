@@ -36,6 +36,10 @@
 #include "G4RunManager.hh"
 #include "G4SystemOfUnits.hh"
 #include "globals.hh"
+#include "G4Step.hh"
+
+#include "B1SteppingAction.hh"
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 B1EventAction::B1EventAction()
@@ -54,7 +58,8 @@ B1EventAction::B1EventAction()
   thetaDeg(-1),
   phiDeg(-1),
   xpoint(-1121),
-  ypoint(-1121)
+  ypoint(-1121),
+  Energy(-1)
 {
   const char* jobId = std::getenv("B1_JOB_ID");
   if (jobId) {
@@ -92,7 +97,15 @@ void B1EventAction::BeginOfEventAction(const G4Event*)
     createdPhotons = 0;
     detectedPhotons = 0;
     detectedPhotons2 = 0;
+    detectedPhotonscompt = 0;
+    detectedPhotonsphot = 0;
+    detectedPhotonsconv = 0;
+    detectedPhotonsleft = 0;
     TED = 0;
+    TED2 = 0;
+    TED3 = 0;
+    escapeParticles.clear();
+    gTrackIDtoTag.clear();
 }
 
 void B1EventAction::EndOfEventAction(const G4Event* event)
@@ -113,17 +126,75 @@ void B1EventAction::EndOfEventAction(const G4Event* event)
   analysisManager->FillH1(7, nPhTr2);
   analysisManager->FillH1(8, nPrTr2);
   analysisManager->FillH1(9, nNeTr2);
+  analysisManager->FillH2(98, 1, 11);
 //if(createdPhotons == 0) return;
-     outFile << "Theta(deg): " << thetaDeg
+     outFile << "Energy: " << Energy
+             << " Theta(deg): " << thetaDeg
              << " Phi(deg): " << phiDeg
              << " Xpoint: " << xpoint
              << " Ypoint: " << ypoint
              << " EventID: " << event->GetEventID()
              << " Created: " << createdPhotons
              << " Detected: " << detectedPhotons << "  ,   " << detectedPhotons2
+             << "  compt:   " << detectedPhotonscompt << "  phot:   " << detectedPhotonsphot << "  conv:   " << detectedPhotonsconv << "  ,   " << detectedPhotonsleft
              << " TotalED: " << TED
+             << " TotalED_ConvE: " << TED2
+             << " TotalED_Gamma: " << TED3
              << std::endl;
+             /*
+             //double lastEscapeEnergySum = 0.0;
+             for (const auto& pair : escapeParticles) {
+              int uniqueCode = pair.first;
+              const auto& energies = pair.second;
+          
+              // 마지막 볼륨이 "World"일 때만 기록
+              if (lastVolumeOfTrack.count(uniqueCode) &&
+                  lastVolumeOfTrack[uniqueCode] == "World") {
+        
+                  if (!energies.empty()) {
+                      lastEscapeEnergySum += energies.back();
+                  }
+
+                  outFile << " Escape PDG: " << uniqueCode << " |";
+                  for (double e : energies) {
+                      outFile << " " << e;
+                  }
+                  outFile << std::endl;
+              }
+          }
+        // 추가 로그 출력
+        //if (lastEscapeEnergySum > Energy) DumpStepLogs(outFile);
+    
+        // 다음 이벤트 준비
+        //ClearStepLogs();
+        */
+}
+void B1EventAction::WriteEscapes(int pdg, double energy) {
+  escapeParticles[pdg].push_back(energy);
+}
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+void B1EventAction::LogStep(G4Track* track, const G4Step* step) {
+  StepLogEntry entry;
+  entry.trackID = track->GetTrackID();
+  entry.parentID = track->GetParentID();
+  entry.pdg = track->GetParticleDefinition()->GetPDGEncoding();
+  entry.volumeName = step->GetPreStepPoint()->GetTouchableHandle()->GetVolume()->GetName();
+  entry.kineticEnergy = step->GetPreStepPoint()->GetKineticEnergy();
+
+  stepLogs.push_back(entry);
 }
 
+void B1EventAction::ClearStepLogs() {
+  stepLogs.clear();
+}
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+void B1EventAction::DumpStepLogs(std::ofstream& outFile) const {
+  outFile << " StepLog:" << std::endl;
+  for (const auto& entry : stepLogs) {
+      outFile << "  TrackID: " << entry.trackID
+              << " ParentID: " << entry.parentID
+              << " PDG: " << entry.pdg
+              << " Volume: " << entry.volumeName
+              << " KE: " << entry.kineticEnergy << std::endl;
+  }
+}

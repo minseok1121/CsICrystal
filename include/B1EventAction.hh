@@ -35,10 +35,17 @@
 #include "globals.hh"
 #include <fstream>
 #include "G4SystemOfUnits.hh"
-
+#include <unordered_map>
+#include "G4Step.hh"
 /// Event action class
 ///
-
+struct StepLogEntry {
+  G4int trackID;
+  G4int parentID;
+  G4int pdg;
+  G4String volumeName;
+  G4double kineticEnergy;
+};
 class B1EventAction : public G4UserEventAction
 {
   public:
@@ -58,16 +65,34 @@ class B1EventAction : public G4UserEventAction
     void CountCreatedPhoton() { createdPhotons++; }
     void CountDetectedPhoton() { detectedPhotons++; }
     void CountDetectedPhoton2() { detectedPhotons2++; }
+    void CountDetectedPhotoncompt() { detectedPhotonscompt++; }
+    void CountDetectedPhotonphot() { detectedPhotonsphot++; }
+    void CountDetectedPhotonconv() { detectedPhotonsconv++; }
+    void CountDetectedPhotonleft() { detectedPhotonsleft++; }
     void TotalED(G4double ed) { TED += ed; }
+    void TotalED2(G4double ed) { TED2 += ed; }
+    void TotalED3(G4double ed) { TED3 += ed; }
+    void WriteEscapes(G4int pdg, G4double energy);
 
-    void SetThetaPhi(G4double theta, G4double phi, G4double x, G4double y) {
+    void SetThetaPhi(G4double theta, G4double phi, G4double x, G4double y, G4double E) {
       thetaDeg = theta / CLHEP::deg;
       phiDeg = phi / CLHEP::deg;
       xpoint = x;
       ypoint = y;
+      Energy = E;
   }
   std::ofstream& GetOutputFile(); 
+  void LogStep(G4Track* track, const G4Step* step);
+  void ClearStepLogs();
+  void DumpStepLogs(std::ofstream& outFile) const;
+  void SetLastVolume(int code, const std::string& vol) {
+    lastVolumeOfTrack[code] = vol;
+}
 
+std::string GetLastVolume(int code) const {
+    auto it = lastVolumeOfTrack.find(code);
+    return (it != lastVolumeOfTrack.end()) ? it->second : "";
+}
   private:
     G4double  fEdep;
     G4int nPTr1, nETr1, nPhTr1, nPrTr1, nNeTr1;
@@ -76,13 +101,24 @@ class B1EventAction : public G4UserEventAction
     int createdPhotons;
     int detectedPhotons;
     int detectedPhotons2;
+    int detectedPhotonscompt;
+    int detectedPhotonsphot;
+    int detectedPhotonsconv;
+    int detectedPhotonsleft;
     G4double TED;
+    G4double TED2;
+    G4double TED3;
     std::ofstream outFile;
     
     G4double thetaDeg;
     G4double phiDeg;
     G4double xpoint;
     G4double ypoint;
+    G4double Energy;
+    std::unordered_map<int, std::vector<double>> escapeParticles;
+    std::vector<StepLogEntry> stepLogs;
+    std::map<int, std::string> lastVolumeOfTrack;
+
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
